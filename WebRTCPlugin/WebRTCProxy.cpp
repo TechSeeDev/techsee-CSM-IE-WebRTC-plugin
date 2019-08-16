@@ -12,6 +12,9 @@
 #include "api/peer_connection_interface.h"
 #include "api/audio_codecs/builtin_audio_decoder_factory.h"
 #include "api/audio_codecs/builtin_audio_encoder_factory.h"
+#include "api/video_codecs/builtin_video_decoder_factory.h"
+#include "api/video_codecs/builtin_video_encoder_factory.h"
+
 
 // Normal Device Capture
 #include "modules/video_capture/video_capture.h"
@@ -48,9 +51,9 @@ HRESULT WebRTCProxy::FinalConstruct()
 		if (!signalingThread->Start() || !eventThread->Start() || !workThread->Start() || !networkThread->Start())
 			return false;
 
-		//Initialize things on event thread
+		// Initialize things on event thread
 		eventThread->Invoke<void>(RTC_FROM_HERE, []() {
-			CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+			CoInitializeEx(NULL, COINIT_MULTITHREADED /*COINIT_APARTMENTTHREADED*/);
 		});
 
 		inited = true;
@@ -65,8 +68,8 @@ HRESULT WebRTCProxy::FinalConstruct()
 			NULL,
 			webrtc::CreateBuiltinAudioEncoderFactory(),
 			webrtc::CreateBuiltinAudioDecoderFactory(),
-			NULL,
-			NULL,
+			webrtc::CreateBuiltinVideoEncoderFactory(),
+			webrtc::CreateBuiltinVideoDecoderFactory(),
 			NULL,
 			NULL
 		).release();
