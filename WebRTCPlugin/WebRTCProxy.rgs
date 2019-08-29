@@ -17,7 +17,7 @@ HKCR
 			ForceRemove Programmable
 			InprocServer32 = s '%MODULE%'
 			{
-				val ThreadingModel = s 'Free'
+				val ThreadingModel = s 'Apartment'
 			}
 			ForceRemove Control
 			ForceRemove 'ToolboxBitmap32' = s '%MODULE%, 106'

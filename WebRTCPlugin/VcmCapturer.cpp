@@ -44,6 +44,7 @@ bool VcmCapturer::Init(size_t width, size_t height, size_t target_fps, size_t ca
 		if (vcm_)
 		{
 			id_ = id;
+			label = id_;
 			break;
 		}
 	}
