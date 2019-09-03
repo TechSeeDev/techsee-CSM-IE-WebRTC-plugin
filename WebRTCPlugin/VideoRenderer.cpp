@@ -89,6 +89,16 @@ HRESULT VideoRenderer::OnDrawAdvanced(ATL_DRAWINFO& di)
 	RECT* rc = (RECT*)di.prcBounds;
 	HDC hdc = di.hdcDraw;
 
+	// Prevent any initial resizing flicker
+	if (rotation != -1)
+	{
+		// Rotation recalculation precaution
+		rc->left = rc->left;
+		rc->top = rc->top;
+		rc->right = rc->left + videoWidth;
+		rc->bottom = rc->top + videoHeight;
+	}
+
 	// Create black brush
 	HBRUSH hBrush = CreateSolidBrush(RGB(0, 0, 0));
 
