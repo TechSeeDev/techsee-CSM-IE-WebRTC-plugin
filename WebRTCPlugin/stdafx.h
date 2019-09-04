@@ -25,3 +25,7 @@
 #include <atlctl.h>
 
 #include <string>
+
+#define WEBRTC_USE_OPENH264
+
+#pragma warning (disable : 4267 4244)

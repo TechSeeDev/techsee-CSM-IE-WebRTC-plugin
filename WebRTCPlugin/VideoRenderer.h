@@ -8,7 +8,24 @@
 #include  <mutex>
 
 #include "api/video/video_frame.h"
-#include "api/videosinkinterface.h"
+#include "api/video/video_sink_interface.h"
+
+
+#ifdef NOMINMAX
+#undef NOMINMAX 
+#ifndef max
+#define max(a,b)            (((a) > (b)) ? (a) : (b))
+#endif
+#ifndef min
+#define min(a,b)            (((a) < (b)) ? (a) : (b))
+#endif
+#endif
+
+#include <gdiplus.h>
+#pragma comment(lib, "Gdiplus.lib")
+
+#undef max
+#undef min
 
 #if defined(_WIN32_WCE) && !defined(_CE_DCOM) && !defined(_CE_ALLOW_SINGLE_THREADED_OBJECTS_IN_MTA)
 #error "Single-threaded COM objects are not properly supported on Windows CE platform, such as the Windows Mobile platforms that do not include full DCOM support. Define _CE_ALLOW_SINGLE_THREADED_OBJECTS_IN_MTA to force ATL to support creating single-thread COM object's and allow use of it's single-threaded COM object implementations. The threading model in your rgs file was set to 'Free' as that is the only threading model supported in non DCOM Windows CE platforms."
@@ -106,6 +123,8 @@ public:
 public:
 
 	virtual void OnFrame(const webrtc::VideoFrame& frame) override;
+	virtual void OnDiscardedFrame() override;
+
 	HRESULT OnDrawAdvanced(ATL_DRAWINFO& di);
 
 
@@ -116,12 +135,13 @@ public:
 
 	HRESULT OnPostVerbInPlaceActivate()
 	{
-		// Get parent window
-		return  m_spInPlaceSite->GetWindow(&hwndParent);
+		HRESULT hr = m_spInPlaceSite->GetWindow(&hwndParent);
+		return hr;
 	}
 
 	void FinalRelease()
 	{
+		Gdiplus::GdiplusShutdown(gdiplusToken);
 	}
 
 	STDMETHOD(setTrack) (VARIANT track);
@@ -135,15 +155,23 @@ public:
 		*pVal = (SHORT)videoHeight;
 		return S_OK;
 	}
-	STDMETHODIMP put_onresize(VARIANT handler) { return MarshalCallback(onresize, handler); }
+	STDMETHODIMP put_onresize(VARIANT handler)
+	{
+		return MarshalCallback(onresize, handler);
+	}
+
+	STDMETHOD(getFrame) (VARIANT* val);
 
 private:
-	
+	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+	ULONG_PTR gdiplusToken;
+
 	std::shared_ptr<webrtc::VideoFrame> frames[2];
 	std::mutex mutex;
 	bool background = 0;
 	size_t videoWidth;
 	size_t videoHeight;
+	webrtc::VideoRotation rotation;
 
 	HWND hwndParent;
 	Callback onresize;
