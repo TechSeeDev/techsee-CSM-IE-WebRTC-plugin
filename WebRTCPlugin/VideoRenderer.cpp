@@ -32,7 +32,7 @@ void VideoRenderer::OnFrame(const webrtc::VideoFrame& frame)
 		}
 
 		// Update
-		if (frame.rotation() == webrtc::kVideoRotation_90)
+		if ((frame.rotation() == webrtc::kVideoRotation_90) || (frame.rotation() == webrtc::kVideoRotation_270))
 		{
 			videoWidth = frame.height();
 			videoHeight = frame.width();
@@ -52,7 +52,8 @@ void VideoRenderer::OnFrame(const webrtc::VideoFrame& frame)
 	// Only iOS rotated frames need to be adjusted.
 	webrtc::VideoFrame* clone = nullptr;
 	if (rotation == webrtc::kVideoRotation_90 ||
-		rotation == webrtc::kVideoRotation_180)
+		rotation == webrtc::kVideoRotation_180 ||
+	   	rotation == webrtc::kVideoRotation_270)
 	{
 		// Apply rotation and clone video frame
 		webrtc::VideoFrame rotated_frame(frame);
@@ -89,15 +90,15 @@ HRESULT VideoRenderer::OnDrawAdvanced(ATL_DRAWINFO& di)
 	RECT* rc = (RECT*)di.prcBounds;
 	HDC hdc = di.hdcDraw;
 
-	// Prevent any initial resizing flicker
-	if (rotation != -1)
-	{
-		// Rotation recalculation precaution
-		rc->left = rc->left;
-		rc->top = rc->top;
-		rc->right = rc->left + videoWidth;
-		rc->bottom = rc->top + videoHeight;
-	}
+	//// Prevent any initial resizing flicker
+	//if (rotation != -1)
+	//{
+	//	// Rotation recalculation precaution
+	//	rc->left = rc->left;
+	//	rc->top = rc->top;
+	//	rc->right = rc->left + videoWidth;
+	//	rc->bottom = rc->top + videoHeight;
+	//}
 
 	// Create black brush
 	HBRUSH hBrush = CreateSolidBrush(RGB(0, 0, 0));
