@@ -121,8 +121,8 @@ HRESULT WebRTCProxy::FinalConstruct()
 			NULL,
 			webrtc::CreateBuiltinAudioEncoderFactory(),
 			webrtc::CreateBuiltinAudioDecoderFactory(),
-			//webrtc::CreateBuiltinVideoEncoderFactory(),
-			absl::make_unique<webrtc::H264VideoEncoderFactory>(),
+			webrtc::CreateBuiltinVideoEncoderFactory(),
+			//absl::make_unique<webrtc::H264VideoEncoderFactory>(),
 			webrtc::CreateBuiltinVideoDecoderFactory(),
 			NULL,
 			NULL
