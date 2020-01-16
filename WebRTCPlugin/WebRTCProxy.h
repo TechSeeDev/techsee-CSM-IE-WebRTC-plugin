@@ -100,6 +100,8 @@ public:
 	STDMETHOD(createLocalAudioTrack)(VARIANT constraints, IUnknown** track);
 	STDMETHOD(createLocalVideoTrack)(VARIANT constraints, IUnknown** track);
 	STDMETHOD(parseIceCandidate)(VARIANT candidate, VARIANT* parsed);
+	STDMETHOD(getVersion)(VARIANT* retVal);
+	STDMETHOD(setLogFilePath)(VARIANT path, int severity = rtc::LS_VERBOSE);
 
 	static std::shared_ptr<rtc::Thread>& GetEventThread() { return eventThread; }
 

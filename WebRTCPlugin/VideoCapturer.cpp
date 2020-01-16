@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "LogSinkImpl.h"
 #include "VideoCapturer.hpp"
 
 #include <algorithm>
@@ -13,6 +14,8 @@ VideoCapturer::~VideoCapturer() = default;
 
 void VideoCapturer::OnFrame(const webrtc::VideoFrame& frame)
 {
+	FUNC_BEGIN();
+
 	int cropped_width = 0;
 	int cropped_height = 0;
 	int out_width = 0;
@@ -27,6 +30,7 @@ void VideoCapturer::OnFrame(const webrtc::VideoFrame& frame)
 		&out_width,
 		&out_height))
 	{
+		FUNC_END();
 		// Drop frame in order to respect frame rate constraint.
 		return;
 	}
@@ -50,6 +54,7 @@ void VideoCapturer::OnFrame(const webrtc::VideoFrame& frame)
 		// No adaptations needed, just return the frame as is.
 		broadcaster.OnFrame(frame);
 	}
+	FUNC_END();
 }
 
 rtc::VideoSinkWants VideoCapturer::GetSinkWants()
