@@ -7,9 +7,11 @@
 
 CWebRTCPluginModule _AtlModule;
 
+HINSTANCE g_hInstance = nullptr;
+
 // DLL Entry Point
 extern "C" BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpReserved)
 {
-	hInstance;
-	return _AtlModule.DllMain(dwReason, lpReserved); 
+	g_hInstance = hInstance;
+	return _AtlModule.DllMain(dwReason, lpReserved);
 }
