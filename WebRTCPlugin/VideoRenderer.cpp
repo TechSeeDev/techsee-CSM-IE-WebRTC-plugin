@@ -1,5 +1,6 @@
 // VideoRenderer.cpp : Implementation of VideoRenderer
 #include "stdafx.h"
+#include "LogSinkImpl.h"
 #include "WebRTCProxy.h"
 #include "VideoRenderer.h"
 #undef FOURCC
@@ -9,6 +10,8 @@
 
 HRESULT VideoRenderer::FinalConstruct()
 {
+	FUNC_BEGIN();
+
 	SetThread(WebRTCProxy::GetEventThread());
 	rotation = (webrtc::VideoRotation)-1;
 	videoWidth = videoHeight = 0;
@@ -16,11 +19,13 @@ HRESULT VideoRenderer::FinalConstruct()
 	Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 
 	// Done
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 void VideoRenderer::OnFrame(const webrtc::VideoFrame& frame)
 {
+	FUNC_BEGIN();
+
 	// Check if size has changed
 	if ((videoWidth != frame.width() || videoHeight != frame.height()) ||
 		frame.rotation() != rotation)
@@ -78,6 +83,8 @@ void VideoRenderer::OnFrame(const webrtc::VideoFrame& frame)
 	
 	// Redraw
 	::InvalidateRect(hwndParent, NULL, 0);
+
+	FUNC_END();
 }
 
 void VideoRenderer::OnDiscardedFrame()
@@ -87,6 +94,8 @@ void VideoRenderer::OnDiscardedFrame()
 
 HRESULT VideoRenderer::OnDrawAdvanced(ATL_DRAWINFO& di)
 {
+	FUNC_BEGIN();
+
 	RECT* rc = (RECT*)di.prcBounds;
 	HDC hdc = di.hdcDraw;
 
@@ -120,7 +129,7 @@ HRESULT VideoRenderer::OnDrawAdvanced(ATL_DRAWINFO& di)
 
 	// Check if we have a frame already
 	if (!frame)
-		return S_OK;
+		FUNC_END_RET_S(S_OK);
 
 	// Get width and height
 	int width = frame->width();
@@ -191,36 +200,38 @@ HRESULT VideoRenderer::OnDrawAdvanced(ATL_DRAWINFO& di)
 	// Restore stretching mode
 	SetStretchBltMode(hdc, oldMode);
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP VideoRenderer::setTrack(VARIANT track)
 {
+	FUNC_BEGIN();
+
 	//Get dispatch interface
 	if (track.vt != VT_DISPATCH)
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	IDispatch* disp = V_DISPATCH(&track);
 	if (!disp)
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	//Get atl com object from track.
 	CComPtr<ITrackAccess> proxy;
 	HRESULT hr = disp->QueryInterface(IID_PPV_ARGS(&proxy));
 	if (FAILED(hr))
-		return hr;
+		FUNC_END_RET_S(hr);
 
 	//Convert to video
 	webrtc::VideoTrackInterface* videoTrack = reinterpret_cast<webrtc::VideoTrackInterface*>(proxy->GetTrack().get());
 	if (!videoTrack)
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	//Add us as video 
 	rtc::VideoSinkWants wanted;
 	wanted.rotation_applied = true;
 	videoTrack->AddOrUpdateSink(this, wanted);
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -307,6 +318,8 @@ bool GetEncoderClsid(std::wstring format, CLSID* pClsid)
 
 STDMETHODIMP VideoRenderer::getFrame(VARIANT* val)
 {
+	FUNC_BEGIN();
+
 	HRESULT hr = S_OK;
 
 	// Get foreground buffer
@@ -316,7 +329,7 @@ STDMETHODIMP VideoRenderer::getFrame(VARIANT* val)
 
 	// Check if we have a frame already
 	if (!frame)
-		return S_OK;
+		FUNC_END_RET_S(S_OK);
 
 	// Get width and height
 	int width = videoWidth;
@@ -428,5 +441,5 @@ clean_up:
 	// Clean rgba data
 	free(rgba);
 
-	return hr;
+	FUNC_END_RET_S(hr);
 }

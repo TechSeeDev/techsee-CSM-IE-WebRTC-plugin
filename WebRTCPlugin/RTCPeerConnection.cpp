@@ -1,5 +1,6 @@
 // RTCPeerConnection.cpp : Implementation of RTCPeerConnection
 #include "stdafx.h"
+#include "LogSinkImpl.h"
 #include <atlsafe.h>
 
 #include "api\jsep.h"
@@ -9,6 +10,7 @@
 #include "RTPSender.h"
 #include "DataChannel.h"
 
+
 class SetSessionDescriptionCallback :
 	public rtc::RefCountedObject<CallbackDispatcher<webrtc::SetSessionDescriptionObserver>>
 {
@@ -16,25 +18,37 @@ public:
 	SetSessionDescriptionCallback(webrtc::PeerConnectionInterface* pci, std::shared_ptr<rtc::Thread> &thread, VARIANT successCallback, VARIANT failureCallback) :
 		pc(pci)
 	{
+		FUNC_BEGIN();
+		
 		//Set dispatcher thread
 		SetThread(thread);
 		//Marshal callbacks
 		MarshalCallback(success, successCallback);
 		MarshalCallback(failure, failureCallback);
+
+		FUNC_END();
 	}
 
 	virtual ~SetSessionDescriptionCallback() = default;
 
 	void OnSuccess() override
 	{
+		FUNC_BEGIN();
+
 		//Call sucess without args
 		DispatchAsync(success);
+
+		FUNC_END();
 	}
 
 	void OnFailure(const std::string& error) override
 	{
+		FUNC_BEGIN();
+
 		//Call error callback
 		DispatchAsync(failure, error);
+
+		FUNC_END();
 	}
 
 private:
@@ -51,17 +65,23 @@ public:
 	CreateSessionDescriptionCallback(webrtc::PeerConnectionInterface* pci, std::shared_ptr<rtc::Thread> &thread, VARIANT successCallback, VARIANT failureCallback) :
 		pc(pci)
 	{
+		FUNC_BEGIN();
+
 		//Set dispatcher thread
 		SetThread(thread);
 		//Marshal callbacks
 		MarshalCallback(success, successCallback);
 		MarshalCallback(failure, failureCallback);
+
+		FUNC_END();
 	}
 
 	virtual ~CreateSessionDescriptionCallback() = default;
 
 	void OnSuccess(webrtc::SessionDescriptionInterface* desc) override
 	{
+		FUNC_BEGIN();
+
 		// up to JS
 		std::string str;
 		desc->ToString(&str);
@@ -70,11 +90,17 @@ public:
 		_variant_t sdp = str.c_str();
 
 		DispatchAsync(success, type, sdp);
+
+		FUNC_END();
 	}
 
 	void OnFailure(const std::string& error) override
 	{
+		FUNC_BEGIN();
+
 		DispatchAsync(failure, error);
+
+		FUNC_END();
 	}
 private:
 	rtc::scoped_refptr<webrtc::PeerConnectionInterface> pc;
@@ -107,8 +133,10 @@ private:
 
 STDMETHODIMP RTCPeerConnection::setConfiguration(VARIANT variant)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	webrtc::PeerConnectionInterface::RTCConfiguration configuration;
 	JSObject obj(variant);
@@ -198,16 +226,18 @@ STDMETHODIMP RTCPeerConnection::setConfiguration(VARIANT variant)
 
 	//Apply new one
 	if (!pc->SetConfiguration(configuration))
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	//OK
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::createOffer(VARIANT successCallback, VARIANT failureCallback, VARIANT options)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	webrtc::PeerConnectionInterface::RTCOfferAnswerOptions rtcOfferAnswerOptions;
 	JSObject obj(options);
@@ -242,19 +272,21 @@ STDMETHODIMP RTCPeerConnection::createOffer(VARIANT successCallback, VARIANT fai
 	//Create new observer
 	pc->CreateOffer(observer, rtcOfferAnswerOptions);
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::setLocalDescription(VARIANT successCallback, VARIANT failureCallback, VARIANT description)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	Callback failure(failureCallback);
 	JSObject obj(description);
 
 	if (obj.isNull())
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	//Get type and sdp from object
 	std::string type = obj.GetStringProperty(L"type");
@@ -263,7 +295,7 @@ STDMETHODIMP RTCPeerConnection::setLocalDescription(VARIANT successCallback, VAR
 	//If not found
 	if (type.empty() || sdp.empty())
 		//Call error callback with message
-		return failure.Invoke("Wrong input parameter, type or sdp missing");
+		FUNC_END_RET_S(failure.Invoke("Wrong input parameter, type or sdp missing"));
 
 	//Try to parse input
 	webrtc::SdpParseError parseError;
@@ -274,7 +306,7 @@ STDMETHODIMP RTCPeerConnection::setLocalDescription(VARIANT successCallback, VAR
 		//Call error msg
 		std::string msg = "Can't parse received session description message. SdpParseError was: " + parseError.description;
 		//Call error callback with message
-		return failure.Invoke(msg);
+		FUNC_END_RET_S(failure.Invoke(msg));
 	}
 
 	//Create observer
@@ -283,13 +315,15 @@ STDMETHODIMP RTCPeerConnection::setLocalDescription(VARIANT successCallback, VAR
 	//Set it
 	pc->SetLocalDescription(observer, sessionDescription);
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::createAnswer(VARIANT successCallback, VARIANT failureCallback, VARIANT options)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	webrtc::PeerConnectionInterface::RTCOfferAnswerOptions rtcOfferAnswerOptions;
 	JSObject obj(options);
@@ -314,18 +348,20 @@ STDMETHODIMP RTCPeerConnection::createAnswer(VARIANT successCallback, VARIANT fa
 	//Create new observer
 	pc->CreateAnswer(observer, rtcOfferAnswerOptions);
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 STDMETHODIMP RTCPeerConnection::setRemoteDescription(VARIANT successCallback, VARIANT failureCallback, VARIANT description)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	Callback failure(failureCallback);
 	JSObject obj(description);
 
 	if (obj.isNull())
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	//Get type and sdp from object
 	std::string type = obj.GetStringProperty(L"type");
@@ -334,7 +370,7 @@ STDMETHODIMP RTCPeerConnection::setRemoteDescription(VARIANT successCallback, VA
 	//If not found
 	if (type.empty() || sdp.empty())
 		//Call error callback with message
-		return failure.Invoke("Wrong input parameter, type or sdp missing");
+		FUNC_END_RET_S(failure.Invoke("Wrong input parameter, type or sdp missing"));
 
 	//Try to parse input
 	webrtc::SdpParseError parseError;
@@ -345,7 +381,7 @@ STDMETHODIMP RTCPeerConnection::setRemoteDescription(VARIANT successCallback, VA
 		//Call errror msg
 		std::string msg = "Can't parse received session description message. SdpParseError was: " + parseError.description;
 		//Call error callback with message
-		return failure.Invoke(msg);
+		FUNC_END_RET_S(failure.Invoke(msg));
 	}
 
 	//Create observer
@@ -354,18 +390,20 @@ STDMETHODIMP RTCPeerConnection::setRemoteDescription(VARIANT successCallback, VA
 	//Set it
 	pc->SetRemoteDescription(observer, sessionDescription);
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 STDMETHODIMP RTCPeerConnection::addIceCandidate(VARIANT successCallback, VARIANT failureCallback, VARIANT candidate)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	Callback failure(failureCallback);
 	JSObject obj(candidate);
 
 	if (obj.isNull())
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	//Get type and sdp from object
 	std::string sdp = obj.GetStringProperty(L"candidate");
@@ -375,7 +413,7 @@ STDMETHODIMP RTCPeerConnection::addIceCandidate(VARIANT successCallback, VARIANT
 	//If not found
 	if (sdpMid.empty() && sdpMLineIndex == -1)
 		//Call error callback with message
-		return failure.Invoke("Wrong input parameters, sdpMid and sdpMLineIndex missing");
+		FUNC_END_RET_S(failure.Invoke("Wrong input parameters, sdpMid and sdpMLineIndex missing"));
 
 	//Try to parse input
 	webrtc::SdpParseError parseError;
@@ -387,40 +425,42 @@ STDMETHODIMP RTCPeerConnection::addIceCandidate(VARIANT successCallback, VARIANT
 		//Call errror msg
 		std::string msg = "Can't parse received candidate. SdpParseError was: " + parseError.description;
 		//Call error callback with message
-		return failure.Invoke(msg);
+		FUNC_END_RET_S(failure.Invoke(msg));
 	}
 
 	//Set it
 	if (!pc->AddIceCandidate(iceCandidate.get()))
 		//Call error callback with message
-		return failure.Invoke("AddIceCandidate failed");
+		FUNC_END_RET_S(failure.Invoke("AddIceCandidate failed"));
 
 	//Get updated sdp
 	Callback success(successCallback);
 
 	//OK
-	return success.Invoke();
+	FUNC_END_RET_S(success.Invoke());
 }
 
 STDMETHODIMP RTCPeerConnection::addTrack(VARIANT track, VARIANT stream, IUnknown** rtpSender)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Get dispatch interface
 	if (track.vt != VT_DISPATCH)
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	IDispatch* disp = V_DISPATCH(&track);
 
 	if (!disp)
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	//Get atl com object from track.
 	CComPtr<ITrackAccess> proxy;
 	HRESULT hr = disp->QueryInterface(IID_PPV_ARGS(&proxy));
 	if (FAILED(hr))
-		return hr;
+		FUNC_END_RET_S(hr);
 
 	// libwebrtc only supports adding track to one stream and it only requires the stream label, 
 	// so we use a fake object instead of having to wrap the whole media stream 
@@ -455,7 +495,7 @@ STDMETHODIMP RTCPeerConnection::addTrack(VARIANT track, VARIANT stream, IUnknown
 	CComObject<RTPSender>* sender;
 	HRESULT hresult = CComObject<RTPSender>::CreateInstance(&sender);
 	if (FAILED(hresult))
-		return hresult;
+		FUNC_END_RET_S(hresult);
 
 	//Attach to native object
 	sender->Attach(senderInterface);
@@ -467,20 +507,24 @@ STDMETHODIMP RTCPeerConnection::addTrack(VARIANT track, VARIANT stream, IUnknown
 	(*rtpSender)->AddRef();
 
 	//Done
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::removeTrack(VARIANT sender)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Done
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::getRemoteStreamTracks(VARIANT stream, VARIANT successCallback)
 {
+	FUNC_BEGIN();
+
 	Callback success(successCallback);
 
 	std::vector<variant_t> args;
@@ -491,7 +535,7 @@ STDMETHODIMP RTCPeerConnection::getRemoteStreamTracks(VARIANT stream, VARIANT su
 
 	//If not found
 	if (remote == remoteStreams.end())
-		return E_NOT_SET;
+		FUNC_END_RET_S(E_NOT_SET);
 
 	//Get all tracks from stream
 	auto audioTracks = remote->second->GetAudioTracks();
@@ -542,18 +586,20 @@ STDMETHODIMP RTCPeerConnection::getRemoteStreamTracks(VARIANT stream, VARIANT su
 	}
 
 	//Call it now
-	return success.Invoke(args);
+	FUNC_END_RET_S(success.Invoke(args));
 
 }
 
 STDMETHODIMP RTCPeerConnection::close()
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	pc->Close();
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 // RTCPeerConnection event handlers
@@ -572,6 +618,8 @@ STDMETHODIMP RTCPeerConnection::put_ondatachannel(VARIANT handler) { return Mars
 
 void RTCPeerConnection::OnSignalingChange(webrtc::PeerConnectionInterface::SignalingState signalingState)
 {
+	FUNC_BEGIN();
+
 	_variant_t state;
 
 	switch (signalingState)
@@ -598,9 +646,12 @@ void RTCPeerConnection::OnSignalingChange(webrtc::PeerConnectionInterface::Signa
 
 	DispatchAsync(onsignalingstatechange, state);
 
+	FUNC_END();
 }
 void RTCPeerConnection::OnAddStream(rtc::scoped_refptr<webrtc::MediaStreamInterface> stream)
 {
+	FUNC_BEGIN();
+
 	//Get stream label
 	variant_t id = stream->id().c_str();
 
@@ -608,10 +659,14 @@ void RTCPeerConnection::OnAddStream(rtc::scoped_refptr<webrtc::MediaStreamInterf
 	remoteStreams[stream->id()] = stream;
 
 	DispatchAsync(onaddstream, id);
+
+	FUNC_END();
 }
 
 void RTCPeerConnection::OnRemoveStream(rtc::scoped_refptr<webrtc::MediaStreamInterface> stream)
 {
+	FUNC_BEGIN();
+
 	//Get stream label
 	variant_t id = stream->id().c_str();
 
@@ -619,17 +674,23 @@ void RTCPeerConnection::OnRemoveStream(rtc::scoped_refptr<webrtc::MediaStreamInt
 	remoteStreams.erase(stream->id());
 
 	DispatchAsync(onremovestream, id);
+	
+	FUNC_END();
 }
 
 void RTCPeerConnection::OnDataChannel(rtc::scoped_refptr<webrtc::DataChannelInterface> dataChannelInterface)
 {
+	FUNC_BEGIN();
 
 	//Create activeX object for media stream track
 	CComObject<DataChannel>* dataChannelObj;
 	HRESULT hresult = CComObject<DataChannel>::CreateInstance(&dataChannelObj);
 
 	if (FAILED(hresult))
+	{
+		FUNC_END_RET_S2(hresult);
 		return;
+	}
 
 	//Attach to native object
 	dataChannelObj->Attach(dataChannelInterface);
@@ -638,15 +699,23 @@ void RTCPeerConnection::OnDataChannel(rtc::scoped_refptr<webrtc::DataChannelInte
 	auto dataChannel = dataChannelObj->GetUnknown();
 
 	DispatchAsync(ondatachannel, dataChannel);
+
+	FUNC_END();
 }
 
 void RTCPeerConnection::OnRenegotiationNeeded()
 {
+	FUNC_BEGIN();
+
 	DispatchAsync(onnegotiationneeded);
+	
+	FUNC_END();
 }
 
 void RTCPeerConnection::OnIceConnectionChange(webrtc::PeerConnectionInterface::IceConnectionState iceConnectionState)
 {
+	FUNC_BEGIN();
+
 	_variant_t state;
 
 	switch (iceConnectionState)
@@ -680,11 +749,14 @@ void RTCPeerConnection::OnIceConnectionChange(webrtc::PeerConnectionInterface::I
 	//Execute callback async
 	DispatchAsync(oniceconnectionstatechange, state);
 
+	FUNC_END();
 }
 
 
 void RTCPeerConnection::OnIceGatheringChange(webrtc::PeerConnectionInterface::IceGatheringState iceGatheringState)
 {
+	FUNC_BEGIN();
+
 	_variant_t state;
 
 	switch (iceGatheringState)
@@ -701,11 +773,14 @@ void RTCPeerConnection::OnIceGatheringChange(webrtc::PeerConnectionInterface::Ic
 	};
 
 	DispatchAsync(onicegatheringstatechange, state);
+
+	FUNC_END();
 }
 
 // Handle locally generated ICE Candidates (a.k.a. ICE Gathering)
 void RTCPeerConnection::OnIceCandidate(const webrtc::IceCandidateInterface* iceCandidate)
 {
+	FUNC_BEGIN();
 
 	_variant_t candidate;
 	_variant_t sdpMid;
@@ -764,17 +839,23 @@ void RTCPeerConnection::OnIceCandidate(const webrtc::IceCandidateInterface* iceC
 	};
 
 	DispatchAsync(onicecandidate, args);
+
+	FUNC_END();
 }
 
 void RTCPeerConnection::OnIceConnectionReceivingChange(bool receiving)
 {
+	FUNC_BEGIN();
+	FUNC_END();
 }
 
 
 STDMETHODIMP RTCPeerConnection::createDataChannel(VARIANT label, VARIANT dataChannelDict, IUnknown** dataChannel)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Get label
 	std::string str = (char*)_bstr_t(label);
@@ -818,14 +899,14 @@ STDMETHODIMP RTCPeerConnection::createDataChannel(VARIANT label, VARIANT dataCha
 
 	//Check 
 	if (!dataChannelInterface)
-		return E_FAIL;
+		FUNC_END_RET_S(E_FAIL);
 
 	//Create activeX object for media stream track
 	CComObject<DataChannel>* dataChannelObj;
 	HRESULT hresult = CComObject<DataChannel>::CreateInstance(&dataChannelObj);
 
 	if (FAILED(hresult))
-		return hresult;
+		FUNC_END_RET_S(hresult);
 
 	//Attach to native object
 	dataChannelObj->Attach(dataChannelInterface);
@@ -840,13 +921,15 @@ STDMETHODIMP RTCPeerConnection::createDataChannel(VARIANT label, VARIANT dataCha
 	(*dataChannel)->AddRef();
 
 	//Done
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::get_localDescription(VARIANT* val)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Get description
 	auto sdp = pc->local_description();
@@ -859,7 +942,7 @@ STDMETHODIMP RTCPeerConnection::get_localDescription(VARIANT* val)
 		//Set array
 		val->vt = VT_NULL;
 		//Ok
-		return S_OK;
+		FUNC_END_RET_S(S_OK);
 	}
 
 	//Get type and sdp as string
@@ -877,13 +960,15 @@ STDMETHODIMP RTCPeerConnection::get_localDescription(VARIANT* val)
 	val->vt = VT_ARRAY | VT_VARIANT;
 	val->parray = args.Detach();
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::get_currentLocalDescription(VARIANT* val)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Get description
 	auto sdp = pc->current_local_description();
@@ -896,7 +981,7 @@ STDMETHODIMP RTCPeerConnection::get_currentLocalDescription(VARIANT* val)
 		//Set array
 		val->vt = VT_NULL;
 		//Ok
-		return S_OK;
+		FUNC_END_RET_S(S_OK);
 	}
 
 	//Get type and sdp as string
@@ -914,13 +999,15 @@ STDMETHODIMP RTCPeerConnection::get_currentLocalDescription(VARIANT* val)
 	val->vt = VT_ARRAY | VT_VARIANT;
 	val->parray = args.Detach();
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::get_pendingLocalDescription(VARIANT* val)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Get description
 	auto sdp = pc->pending_local_description();
@@ -933,7 +1020,7 @@ STDMETHODIMP RTCPeerConnection::get_pendingLocalDescription(VARIANT* val)
 		//Set array
 		val->vt = VT_NULL;
 		//Ok
-		return S_OK;
+		FUNC_END_RET_S(S_OK);
 	}
 
 	//Get type and sdp as string
@@ -951,13 +1038,15 @@ STDMETHODIMP RTCPeerConnection::get_pendingLocalDescription(VARIANT* val)
 	val->vt = VT_ARRAY | VT_VARIANT;
 	val->parray = args.Detach();
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::get_remoteDescription(VARIANT* val)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Get description
 	auto sdp = pc->remote_description();
@@ -970,7 +1059,7 @@ STDMETHODIMP RTCPeerConnection::get_remoteDescription(VARIANT* val)
 		//Set array
 		val->vt = VT_NULL;
 		//Ok
-		return S_OK;
+		FUNC_END_RET_S(S_OK);
 	}
 
 	//Get type and sdp as string
@@ -988,13 +1077,15 @@ STDMETHODIMP RTCPeerConnection::get_remoteDescription(VARIANT* val)
 	val->vt = VT_ARRAY | VT_VARIANT;
 	val->parray = args.Detach();
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::get_currentRemoteDescription(VARIANT* val)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Get description
 	auto sdp = pc->current_remote_description();
@@ -1007,7 +1098,7 @@ STDMETHODIMP RTCPeerConnection::get_currentRemoteDescription(VARIANT* val)
 		//Set array
 		val->vt = VT_NULL;
 		//Ok
-		return S_OK;
+		FUNC_END_RET_S(S_OK);
 	}
 
 	//Get type and sdp as string
@@ -1025,13 +1116,15 @@ STDMETHODIMP RTCPeerConnection::get_currentRemoteDescription(VARIANT* val)
 	val->vt = VT_ARRAY | VT_VARIANT;
 	val->parray = args.Detach();
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
 
 STDMETHODIMP RTCPeerConnection::get_pendingRemoteDescription(VARIANT* val)
 {
+	FUNC_BEGIN();
+
 	if (!pc)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Get description
 	auto sdp = pc->pending_remote_description();
@@ -1044,7 +1137,7 @@ STDMETHODIMP RTCPeerConnection::get_pendingRemoteDescription(VARIANT* val)
 		//Set array
 		val->vt = VT_NULL;
 		//Ok
-		return S_OK;
+		FUNC_END_RET_S(S_OK);
 	}
 
 	//Get type and sdp as string
@@ -1062,5 +1155,5 @@ STDMETHODIMP RTCPeerConnection::get_pendingRemoteDescription(VARIANT* val)
 	val->vt = VT_ARRAY | VT_VARIANT;
 	val->parray = args.Detach();
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }

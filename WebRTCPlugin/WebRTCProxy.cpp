@@ -1,6 +1,7 @@
 // WebRTCProxy.cpp : Implementation of WebRTCProxy
 #include "stdafx.h"
 #include <atlsafe.h>
+#include "LogSinkImpl.h"
 
 #include "JSObject.h"
 #include "WebRTCProxy.h"
@@ -22,6 +23,8 @@
 #include "modules/video_coding/codecs/h264/include/h264.h"
 #include "VcmCapturer.hpp"
 #include "VideoRenderer.h"
+
+extern HINSTANCE g_hInstance;
 
 bool WebRTCProxy::inited = false;
 std::shared_ptr<rtc::Thread> WebRTCProxy::signalingThread;
@@ -83,12 +86,15 @@ private:
 // WebRTCProxy
 HRESULT WebRTCProxy::FinalConstruct()
 {
+	FUNC_BEGIN();
+
 	if (!inited)
 	{
 		//rtc::LogMessage::ConfigureLogging("sensitive debug");
 		rtc::LogMessage::ConfigureLogging("error");
 		rtc::InitializeSSL();
 		rtc::InitRandom(rtc::Time());
+		rtc::ThreadManager::Instance()->WrapCurrentThread();
 
 		signalingThread = std::shared_ptr<rtc::Thread>(rtc::Thread::Create().release());
 		eventThread = std::shared_ptr<rtc::Thread>(rtc::Thread::Create().release());
@@ -102,7 +108,7 @@ HRESULT WebRTCProxy::FinalConstruct()
 
 		if (!signalingThread->Start() || !eventThread->Start()
 			|| !workThread->Start() || !networkThread->Start())
-			return false;
+			FUNC_END_RET_S(false);
 
 		// Initialize things on event thread
 		eventThread->Invoke<void>(RTC_FROM_HERE, []() {
@@ -130,19 +136,50 @@ HRESULT WebRTCProxy::FinalConstruct()
 
 	//Check
 	if (!peer_connection_factory_)
-		return S_FALSE;
+		FUNC_END_RET_S(S_FALSE);
 
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
 }
+IUnknown* g_audioTrack = nullptr;
 
 void WebRTCProxy::FinalRelease()
 {
-	//Remove factory
+	FUNC_BEGIN();
+
+	if (g_audioTrack)
+		g_audioTrack->Release();
+	g_audioTrack = nullptr;
+
+	// Remove factory
+	if (peer_connection_factory_)
+		peer_connection_factory_->Release();
 	peer_connection_factory_ = nullptr;
+
+	if (inited)
+	{
+		eventThread->Invoke<void>(RTC_FROM_HERE, []() {
+			CoUninitialize();
+		});
+
+		networkThread->Quit();
+
+		workThread->Quit();
+		eventThread->Quit();
+		signalingThread->Quit();
+
+		rtc::CleanupSSL();
+		rtc::Thread::Current()->Quit();
+		inited = false;
+	}
+
+
+	FUNC_END();
 }
 
 STDMETHODIMP WebRTCProxy::createPeerConnection(VARIANT variant, IUnknown** peerConnection)
 {
+	FUNC_BEGIN();
+
 	webrtc::PeerConnectionInterface::RTCConfiguration configuration;
 	JSObject obj(variant);
 
@@ -234,7 +271,7 @@ STDMETHODIMP WebRTCProxy::createPeerConnection(VARIANT variant, IUnknown** peerC
 	HRESULT hresult = CComObject<RTCPeerConnection>::CreateInstance(&pc);
 
 	if (FAILED(hresult))
-		return hresult;
+		FUNC_END_RET_S(hresult);
 
 	//Create peerconnection object, it will call the AddRef inside as it gets a ref to the observer
 	rtc::scoped_refptr<webrtc::PeerConnectionInterface> pci = peer_connection_factory_->CreatePeerConnection(
@@ -247,7 +284,7 @@ STDMETHODIMP WebRTCProxy::createPeerConnection(VARIANT variant, IUnknown** peerC
 	//Check it was created correctly
 	if (!pci)
 		//Error
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	//Set event thread
 	pc->SetThread(eventThread);
@@ -262,33 +299,35 @@ STDMETHODIMP WebRTCProxy::createPeerConnection(VARIANT variant, IUnknown** peerC
 	(*peerConnection)->AddRef();
 
 	//OK
-	return hresult;
+	FUNC_END_RET_S(hresult);
 }
 
 
 STDMETHODIMP WebRTCProxy::createLocalAudioTrack(VARIANT constraints, IUnknown** track)
 {
+	FUNC_BEGIN();
+
 	const cricket::AudioOptions options;
 	//Create audio source
 	auto audioSource = peer_connection_factory_->CreateAudioSource(options);
 
 	//Ensure it is created
 	if (!audioSource)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Create track
 	rtc::scoped_refptr<webrtc::MediaStreamTrackInterface> audioTrack = peer_connection_factory_->CreateAudioTrack("audio", audioSource);
 
 	//Ensure it is created
 	if (!audioTrack)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Create activeX object which is a
 	CComObject<MediaStreamTrack>* mediaStreamTrack;
 	HRESULT hresult = CComObject<MediaStreamTrack>::CreateInstance(&mediaStreamTrack);
 
 	if (FAILED(hresult))
-		return hresult;
+		FUNC_END_RET_S(hresult);
 
 	//Attach to native track
 	mediaStreamTrack->Attach(audioTrack);
@@ -301,9 +340,11 @@ STDMETHODIMP WebRTCProxy::createLocalAudioTrack(VARIANT constraints, IUnknown** 
 
 	//Add JS reference
 	(*track)->AddRef();
+	
+	g_audioTrack = *track;
 
 	//OK
-	return hresult;
+	FUNC_END_RET_S(hresult);
 }
 
 class CapturerTrackSource : public webrtc::VideoTrackSource
@@ -342,23 +383,25 @@ public:
 
 STDMETHODIMP WebRTCProxy::createLocalVideoTrack(VARIANT constraints, IUnknown** track)
 {
+	FUNC_BEGIN();
+
 	//Create the video source from capture, note that the video source keeps the std::unique_ptr of the videoCapturer
 	auto captureSource = CapturerTrackSource::Create();
 	rtc::scoped_refptr<webrtc::VideoTrackSourceInterface> videoSource = captureSource;
 	if (!videoSource)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Now create the track
 	rtc::scoped_refptr<webrtc::MediaStreamTrackInterface> videoTrack =
 		peer_connection_factory_->CreateVideoTrack("video", videoSource);
 	if (!videoTrack)
-		return E_UNEXPECTED;
+		FUNC_END_RET_S(E_UNEXPECTED);
 
 	//Create activeX object for media stream track
 	CComObject<MediaStreamTrack>* mediaStreamTrack;
 	HRESULT hresult = CComObject<MediaStreamTrack>::CreateInstance(&mediaStreamTrack);
 	if (FAILED(hresult))
-		return hresult;
+		FUNC_END_RET_S(hresult);
 
 	//Attach to native track
 	mediaStreamTrack->Attach(videoTrack);
@@ -373,15 +416,17 @@ STDMETHODIMP WebRTCProxy::createLocalVideoTrack(VARIANT constraints, IUnknown** 
 	(*track)->AddRef();
 
 	//OK
-	return hresult;
+	FUNC_END_RET_S(hresult);
 }
 
 
 STDMETHODIMP WebRTCProxy::parseIceCandidate(VARIANT candidate, VARIANT* parsed)
 {
+	FUNC_BEGIN();
+
 	//Check input is a string
 	if (candidate.vt != VT_BSTR)
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	//Get candidate as string
 	std::string str = (char*)_bstr_t(candidate);
@@ -392,8 +437,7 @@ STDMETHODIMP WebRTCProxy::parseIceCandidate(VARIANT candidate, VARIANT* parsed)
 	std::unique_ptr<webrtc::IceCandidateInterface> iceCandidate(webrtc::CreateIceCandidate("audio", 0, str, &parseError));
 
 	if (!iceCandidate)
-		//Parsing error
-		return E_INVALIDARG;
+		FUNC_END_RET_S(E_INVALIDARG);
 
 	//Fill data
 	_variant_t foundation = iceCandidate->candidate().foundation().c_str();
@@ -427,5 +471,77 @@ STDMETHODIMP WebRTCProxy::parseIceCandidate(VARIANT candidate, VARIANT* parsed)
 	parsed->parray = args.Detach();
 
 	//Parsed ok
-	return S_OK;
+	FUNC_END_RET_S(S_OK);
+}
+
+STDMETHODIMP WebRTCProxy::getVersion(VARIANT* retVal)
+{
+	FUNC_BEGIN();
+
+	HRSRC rcsrc = FindResource(g_hInstance, MAKEINTRESOURCE(IDR_WEBRTCPROXY), L"REGISTRY");
+	if (!rcsrc)
+		FUNC_END_RET_S(E_FAIL);
+
+	HGLOBAL hRrsc = LoadResource(g_hInstance, rcsrc);
+	if (!hRrsc)
+		FUNC_END_RET_S(E_FAIL);
+
+	void* lpMemRes = LockResource(hRrsc);
+	if (!lpMemRes)
+		FUNC_END_RET_S(E_FAIL);
+
+	char* lpBuff = (char*)lpMemRes;
+	if (!lpBuff)
+		FUNC_END_RET_S(E_FAIL);
+
+	// Version = s '1.0'
+	ATL::CStringA rgs = lpBuff;
+	int pos1 = rgs.Find("Version = s");
+	if (pos1 <= 0)
+		FUNC_END_RET_S(E_FAIL);
+
+	int pos2 = rgs.Find("'", pos1);
+	if (pos2 <= 0)
+		FUNC_END_RET_S(E_FAIL);
+
+	int pos3 = rgs.Find("'", pos2 + 1);
+	if (pos3 <= 0)
+		FUNC_END_RET_S(E_FAIL);
+
+	rgs = rgs.Mid(pos2 + 1, pos3 - (pos2 + 1));
+	variant_t outVal = rgs.GetString();
+	(*retVal).vt = VT_BSTR;
+	(*retVal).bstrVal = SysAllocString(outVal.bstrVal);
+
+	FUNC_END_RET_S(S_OK);
+}
+
+STDMETHODIMP WebRTCProxy::setLogFilePath(VARIANT path, int severity /*= rtc::LS_VERBOSE*/)
+{
+	if (path.vt != VT_BSTR)
+		FUNC_END_RET_S(E_FAIL);
+
+	if (g_logSink)
+	{
+		rtc::LogMessage::RemoveLogToStream(g_logSink);
+		delete g_logSink;
+	}
+
+	ATL::CStringA sPath;
+	sPath.AppendFormat("%ws", path.bstrVal);
+
+	ATL::CStringA s;
+	s.AppendFormat("Path:%ws - severity: %d", path.bstrVal, severity);
+	OutputDebugStringA(s.GetString());
+	
+
+	g_logSink = new LogSinkImpl(sPath.GetString(), (rtc::LoggingSeverity)severity);
+	rtc::LogMessage::AddLogToStream(g_logSink, (rtc::LoggingSeverity)severity);
+	rtc::LogMessage::LogToDebug((rtc::LoggingSeverity)severity);
+	
+	RTC_LOG_F(LS_VERBOSE) << "A new log sink has been created.";
+
+	//RTC_LOG_DEBUG("A new log sink has been created.\n");
+
+	FUNC_END_RET_S(S_OK);
 }
